@@ -2,10 +2,15 @@ import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
 import time
-MIN_MATCH_COUNT = 10
 import math
 
+MIN_MATCH_COUNT = 10
+MIN_FEATURES_COUNT = 5
 
+
+def resize_image(frame, factor):
+    h,w,d = frame.shape
+    return cv.resize(frame,(int(w/factor),int(h/factor)))
 
 
 def getFeatures2d(feature_type):
@@ -27,7 +32,7 @@ def findHomography(img1,img2, feature_type = "sift"):
     e = time.time()
     print("ff time is "+str(e-s))
 
-    if des1 is None or des2 is None or len(des1)<5 or len(des2)<5:
+    if des1 is None or des2 is None or len(des1)<MIN_FEATURES_COUNT or len(des2)<MIN_FEATURES_COUNT:
     	print("****************BAD FRAME*****************")
     	return None,None
 

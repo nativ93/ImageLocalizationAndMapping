@@ -1,7 +1,8 @@
 import numpy as np
 import cv2 as cv
 import copy
-from mappingutils import *
+from mapper import Mapper
+import time
 # img1 = cv.imread('images/cat_part.png',0)          # queryImage
 # img2 = cv.imread('images/cat.png',0) # trainImage
 # print(img1.depth())
@@ -20,54 +21,52 @@ from mappingutils import *
 #     # print("w is: "+str(w))
 #     return h*w
 
-def plot_in_picture(maps,patch_im,feature_type = "sift"):
-    large_im = maps[-1][0];
-    M, mask = findHomography(patch_im,large_im, feature_type);
-    if M is None:
-        return None,None,None
-    h,w,d = patch_im.shape
-    pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
-    dst = cv.perspectiveTransform(pts,M)
-    transformRate = rect_size(dst)/(w*h);
-    # print(dst)
-    # print("transform rate is: "+str(transformRate))
-    # print(dst)
-    for i in reversed(range(len(maps))):
-        # print(maps[i][1])
-        dst = cv.perspectiveTransform(dst,maps[i][1])
+# def plot_in_picture(maps,patch_im,feature_type = "sift"):
+#     large_im = maps[-1][0];
+#     M, mask = findHomography(patch_im,large_im, feature_type);
+#     if M is None:
+#         return None,None,None
+#     h,w,d = patch_im.shape
+#     pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+#     dst = cv.perspectiveTransform(pts,M)
+#     transformRate = rect_size(dst)/(w*h);
+#     # print(dst)
+#     # print("transform rate is: "+str(transformRate))
+#     # print(dst)
+#     for i in reversed(range(len(maps))):
+#         # print(maps[i][1])
+#         dst = cv.perspectiveTransform(dst,maps[i][1])
 
-    # print(dst)
-    cv.waitKey()
-    img4 = copy.deepcopy(maps[0][0])
-    for i in range(4):
-        cv.line(img4,tuple(dst[i][0]),tuple(dst[(i+1)%4][0]),(255,0,0),5)
+#     # print(dst)
+#     cv.waitKey()
+#     img4 = copy.deepcopy(maps[0][0])
+#     for i in range(4):
+#         cv.line(img4,tuple(dst[i][0]),tuple(dst[(i+1)%4][0]),(255,0,0),5)
 
-    # print(rect_size(dst))
-    # print(w*h*0.6)
-    if transformRate < 0.75:
-        maps.append((patch_im,M))
-        print("**************LEVEL UPPPPP!!!!****************")
+#     # print(rect_size(dst))
+#     # print(w*h*0.6)
+#     if transformRate < 0.75:
+#         maps.append((patch_im,M))
+#         print("**************LEVEL UPPPPP!!!!****************")
 
-    # cv.imshow("4",img4)
-    # cv.imshow("1",patch_im)
-    # cv.imshow("2",large_im)
-    return img4,M,mask
-    # cv.waitKey(0)
+#     # cv.imshow("4",img4)
+#     # cv.imshow("1",patch_im)
+#     # cv.imshow("2",large_im)
+#     return img4,M,mask
+#     # cv.waitKey(0)
 
 def load_video(file, feature_type = "sift"):
     cap = cv.VideoCapture(file)
 
-    maps = []
-    ret, map = cap.read()
-    h,w,d = map.shape
-    map = cv.resize(map,(int(w/3),int(h/3)))
-    maps.append((map,np.identity(3)))
-    # cv.imshow("map",map)
-
+    map = Mapper("orb")
+    ret, frame = cap.read()
+    M = map.proccess_frame(frame)
+    
+    h,w,d = frame.shape
     out = cv.VideoWriter('images/outpy.avi',\
         cv.VideoWriter_fourcc('M','J','P','G'),\
         cap.get(cv.CAP_PROP_FPS), \
-        (int(w/3),int(h/3)))
+        (w,h))
 
     failes = 0
     i = 0
@@ -76,21 +75,28 @@ def load_video(file, feature_type = "sift"):
     while failes < 4:
         s = time.time()
         i+=1
-        pframe = frame2
+        pframe = frame
         ret, frame = cap.read()
         if ret == False:
             break;
-        frame = cv.resize(frame,(int(w/3),int(h/3)))
 
-        frame2, M, mask = plot_in_picture(maps,frame, feature_type)
-        if frame2 is None:
+        M = map.proccess_frame(frame)
+        if M is None:
             print("failllllll")
             failes+=1
             out.write(pframe)
             continue
+
+        h,w,d = frame.shape
+        pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+        dst = cv.perspectiveTransform(pts,M)
+        img = copy.deepcopy(map.get_map())
+        for line in range(4):
+            cv.line(img,tuple(dst[line][0]),tuple(dst[(line+1)%4][0]),(255,0,0),5)
+
         failes = 0
         print(i)
-        out.write(frame2)
+        out.write(img)
         e = time.time()
         if(e-s > max_t):
             max_t = e-s
